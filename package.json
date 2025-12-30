@@ -1,0 +1,48 @@
+{
+  "name": "rastry-obs",
+  "version": "1.0.0",
+  "description": "Control remoto de OBS Studio para RastryBot",
+  "main": "electron.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "dev": "electron . --dev"
+  },
+  "build": {
+    "appId": "com.rastry.obs",
+    "productName": "RastryOBS",
+    "win": {
+      "target": "portable",
+      "publisherName": "Rastry",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "RastryOBS-${version}.exe"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/@ngrok/ngrok/bin/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/@ngrok/ngrok/bin",
+        "to": "ngrok",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "@ngrok/ngrok": "^1.4.1",
+    "electron-store": "^8.1.0",
+    "express": "^4.18.2",
+    "node-machine-id": "^1.1.12",
+    "obs-websocket-js": "^5.0.7",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

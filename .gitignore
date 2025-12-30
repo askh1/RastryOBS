@@ -1,0 +1,29 @@
+# Node modules
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Certificate files (sensitive)
+*.pfx
+*.pem
+*.key
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Build output
+dist/
+build/
+*.exe
+
+# Environment variables
+.env
+.env.local

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RastryOBS</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <img src="assets/logo.png" alt="Rastry" class="logo">
+            <div>
+                <h1>RastryOBS</h1>
+                <p>Remote OBS Control</p>
+            </div>
+        </div>
+
+        <!-- Setup Screen -->
+        <div id="setup-screen">
+            <div class="info-box">
+                <h2>Initial Setup</h2>
+                <p>To use RastryOBS you need an ngrok token (free).</p>
+                <ol>
+                    <li>Go to <a href="#" onclick="openExternal('https://dashboard.ngrok.com/signup')">dashboard.ngrok.com/signup</a></li>
+                    <li>Sign up with Google/GitHub (30 seconds)</li>
+                    <li>Copy your authtoken from <a href="#" onclick="openExternal('https://dashboard.ngrok.com/get-started/your-authtoken')">here</a></li>
+                    <li>Paste it below:</li>
+                </ol>
+            </div>
+            <div class="input-group">
+                <input type="text" id="auth-token-input" placeholder="Paste your ngrok authtoken here...">
+                <button onclick="saveAuthToken()" class="btn-primary">Save Token</button>
+            </div>
+            <p class="note">You only need to do this once.</p>
+        </div>
+
+        <!-- Main Screen -->
+        <div id="main-screen" style="display: none;">
+            <!-- Status -->
+            <div class="status-card" id="status-idle">
+                <div class="status-icon status-dot-idle"></div>
+                <div>
+                    <h3>Ready to Start</h3>
+                    <p>Press "Start Tunnel" to begin</p>
+                </div>
+            </div>
+
+            <div class="status-card status-active" id="status-active" style="display: none;">
+                <div class="status-icon status-dot-active"></div>
+                <div>
+                    <h3>Tunnel Active</h3>
+                    <p>Moderators can connect</p>
+                </div>
+            </div>
+
+            <!-- OBS Check -->
+            <div class="check-item" id="obs-check">
+                <span class="check-icon status-dot-waiting"></span>
+                <span>Checking OBS Studio...</span>
+            </div>
+
+            <!-- URL Box -->
+            <div id="url-box" style="display: none;">
+                <label>URL for your Moderators:</label>
+                <div class="url-display">
+                    <input type="text" id="tunnel-url" readonly>
+                    <button onclick="copyUrl()" class="btn-copy" title="Copy URL">
+                        Copy
+                    </button>
+                </div>
+                <p class="note">Copy this URL and send it to your mods via Discord/WhatsApp</p>
+            </div>
+
+            <!-- Connection Stats -->
+            <div id="stats-box" style="display: none;">
+                <div class="stat-item">
+                    <span class="stat-label">Connected Mods:</span>
+                    <span class="stat-value" id="connection-count">0</span>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions">
+                <button id="start-btn" onclick="startTunnel()" class="btn-primary">
+                    Start Tunnel
+                </button>
+                <button id="stop-btn" onclick="stopTunnel()" class="btn-danger" style="display: none;">
+                    Stop Tunnel
+                </button>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions">
+                <h4>Instructions for your Moderators:</h4>
+                <ol>
+                    <li>Go to <strong>rastry.com/obs/control</strong></li>
+                    <li>Login with their moderator account</li>
+                    <li>Paste the URL above</li>
+                    <li>Click "Connect to OBS"</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

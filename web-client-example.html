@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RastryOBS Web Client - Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0e0e10;
+            color: #efeff1;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #efeff1;
+        }
+        .connection-box {
+            background: #18181b;
+            border: 1px solid #26262c;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            background: #26262c;
+            border: 1px solid #3a3a3a;
+            color: #efeff1;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #26262c;
+            border: 1px solid #3a3a3a;
+            color: #ffffff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #2f2f35;
+            border-color: #535353;
+        }
+        button.connected {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .status.success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid #22c55e;
+            color: #22c55e;
+        }
+        .status.error {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid #dc2626;
+            color: #dc2626;
+        }
+        .scenes-box, .sources-box {
+            background: #18181b;
+            border: 1px solid #26262c;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .scene-item, .source-item {
+            background: #26262c;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scene-item:hover, .source-item:hover {
+            background: #2f2f35;
+        }
+        .scene-item.active {
+            background: #535353;
+            border: 1px solid #9ca3af;
+        }
+        .log {
+            background: #0e0e10;
+            border: 1px solid #26262c;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #18181b;
+        }
+        .log-entry.sent {
+            color: #3b82f6;
+        }
+        .log-entry.received {
+            color: #22c55e;
+        }
+        .log-entry.error {
+            color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎥 RastryOBS Web Client</h1>
+    <p style="color: #6b6b6b;">Conecta a tu RastryOBS local relay para controlar OBS desde la web</p>
+
+    <div class="connection-box">
+        <h3>Connection</h3>
+        <input type="text" id="relay-url" value="ws://localhost:4456" placeholder="ws://localhost:4456">
+        <button id="connect-btn" onclick="connectToRelay()">Connect to Relay</button>
+        <div id="status"></div>
+    </div>
+
+    <div class="scenes-box">
+        <h3>Scenes</h3>
+        <button onclick="loadScenes()">Load Scenes</button>
+        <div id="scenes-list"></div>
+    </div>
+
+    <div class="sources-box">
+        <h3>Sources (Current Scene)</h3>
+        <button onclick="loadSources()">Load Sources</button>
+        <div id="sources-list"></div>
+    </div>
+
+    <div class="connection-box">
+        <h3>Communication Log</h3>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let requestId = 0;
+        let pendingRequests = new Map();
+        let currentSceneName = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function showStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${isError ? 'error' : 'success'}`;
+            statusEl.textContent = message;
+        }
+
+        function connectToRelay() {
+            const url = document.getElementById('relay-url').value;
+            const btn = document.getElementById('connect-btn');
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                btn.textContent = 'Connect to Relay';
+                btn.classList.remove('connected');
+                showStatus('Disconnected', true);
+                return;
+            }
+
+            log(`Conectando a ${url}...`, 'info');
+            btn.textContent = 'Conectando...';
+            btn.disabled = true;
+
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                log('[CONNECTED] Connected to local relay', 'received');
+                showStatus('[CONNECTED] Connected to RastryOBS Relay');
+                btn.textContent = 'Disconnect';
+                btn.disabled = false;
+                btn.classList.add('connected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`⬇️ Recibido: ${JSON.stringify(data).substring(0, 100)}...`, 'received');
+                    
+                    if (data.type === 'welcome') {
+                        console.log('Welcome message:', data.message);
+                    } else if (data.requestId && pendingRequests.has(data.requestId)) {
+                        // Resolve pending promise
+                        const { resolve, reject } = pendingRequests.get(data.requestId);
+                        pendingRequests.delete(data.requestId);
+                        
+                        if (data.requestStatus.result) {
+                            resolve(data.responseData);
+                        } else {
+                            reject(new Error(data.error || 'Request failed'));
+                        }
+                    } else if (data.type === 'event') {
+                        handleOBSEvent(data.eventData);
+                    }
+                } catch (error) {
+                    log(`[ERROR] Error parsing message: ${error.message}`, 'error');
+                }
+            };
+
+            ws.onerror = (error) => {
+                log(`[ERROR] WebSocket error: ${error}`, 'error');
+                showStatus('Error de conexión', true);
+            };
+
+            ws.onclose = () => {
+                log('[DISCONNECTED] Disconnected from relay', 'error');
+                showStatus('Disconnected', true);
+                btn.textContent = 'Connect to Relay';
+                btn.disabled = false;
+                btn.classList.remove('connected');
+            };
+        }
+
+        function callOBS(requestType, requestData = {}) {
+            return new Promise((resolve, reject) => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    reject(new Error('Not connected to relay'));
+                    return;
+                }
+
+                const id = ++requestId;
+                const message = {
+                    requestId: id,
+                    requestType: requestType,
+                    requestData: requestData
+                };
+
+                log(`⬆️ Enviado: ${requestType}`, 'sent');
+                ws.send(JSON.stringify(message));
+                
+                pendingRequests.set(id, { resolve, reject });
+
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    if (pendingRequests.has(id)) {
+                        pendingRequests.delete(id);
+                        reject(new Error('Request timeout'));
+                    }
+                }, 10000);
+            });
+        }
+
+        async function loadScenes() {
+            try {
+                const data = await callOBS('GetSceneList');
+                currentSceneName = data.currentProgramSceneName;
+                
+                const scenesListEl = document.getElementById('scenes-list');
+                scenesListEl.innerHTML = '';
+                
+                data.scenes.forEach(scene => {
+                    const item = document.createElement('div');
+                    item.className = 'scene-item';
+                    if (scene.sceneName === currentSceneName) {
+                        item.classList.add('active');
+                    }
+                    item.textContent = scene.sceneName;
+                    item.onclick = () => switchScene(scene.sceneName);
+                    scenesListEl.appendChild(item);
+                });
+                
+                log(`[SUCCESS] Loaded ${data.scenes.length} scenes`, 'received');
+            } catch (error) {
+                log(`[ERROR] Error loading scenes: ${error.message}`, 'error');
+            }
+        }
+
+        async function switchScene(sceneName) {
+            try {
+                await callOBS('SetCurrentProgramScene', { sceneName });
+                currentSceneName = sceneName;
+                log(`[SUCCESS] Changed to scene: ${sceneName}`, 'received');
+                loadScenes();
+                loadSources();
+            } catch (error) {
+                log(`[ERROR] Error switching scene: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadSources() {
+            if (!currentSceneName) {
+                log('[WARNING] Select a scene first', 'error');
+                return;
+            }
+
+            try {
+                const data = await callOBS('GetSceneItemList', { sceneName: currentSceneName });
+                
+                const sourcesListEl = document.getElementById('sources-list');
+                sourcesListEl.innerHTML = '';
+                
+                data.sceneItems.reverse().forEach(source => {
+                    const item = document.createElement('div');
+                    item.className = 'source-item';
+                    item.textContent = `${source.sceneItemEnabled ? '👁️' : '🚫'} ${source.sourceName}`;
+                    item.onclick = () => toggleSource(source.sceneItemId, !source.sceneItemEnabled);
+                    sourcesListEl.appendChild(item);
+                });
+                
+                log(`[SUCCESS] Loaded ${data.sceneItems.length} sources`, 'received');
+            } catch (error) {
+                log(`[ERROR] Error loading sources: ${error.message}`, 'error');
+            }
+        }
+
+        async function toggleSource(itemId, enabled) {
+            try {
+                await callOBS('SetSceneItemEnabled', {
+                    sceneName: currentSceneName,
+                    sceneItemId: itemId,
+                    sceneItemEnabled: enabled
+                });
+                log(`[SUCCESS] Source ${enabled ? 'shown' : 'hidden'}`, 'received');
+                loadSources();
+            } catch (error) {
+                log(`[ERROR] Error toggling source: ${error.message}`, 'error');
+            }
+        }
+
+        function handleOBSEvent(eventData) {
+            log(`📡 Evento OBS: ${eventData.eventType}`, 'received');
+            
+            // Auto-refresh on relevant events
+            if (eventData.eventType === 'CurrentProgramSceneChanged') {
+                currentSceneName = eventData.eventData.sceneName;
+                loadScenes();
+                loadSources();
+            } else if (eventData.eventType === 'SceneItemEnableStateChanged') {
+                loadSources();
+            }
+        }
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            log('[STARTED] RastryOBS Web Client started', 'info');
+            log('[INFO] Start the relay in RastryOBS and click "Connect"', 'info');
+        });
+    </script>
+</body>
+</html>

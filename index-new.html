@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RastryOBS</title>
+    <link rel="stylesheet" href="styles-obs.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Bar (OBS Style) -->
+        <div class="top-bar">
+            <div class="connection-status">
+                <span class="status-dot" id="connection-dot"></span>
+                <span id="connection-text">Disconnected</span>
+            </div>
+            <div class="controls-section">
+                <button id="hotkeys-btn" class="icon-btn" title="Keyboard Shortcuts">KB</button>
+                <button id="premium-btn" class="premium-btn" title="Manage premium license" style="display: none;">Premium</button>
+                <button id="websocket-settings-btn" class="icon-btn" title="WebSocket Server Settings">WS</button>
+                <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Left Panel: Preview -->
+            <div class="preview-panel">
+                <div class="preview-container">
+                    <canvas id="preview-canvas" width="1280" height="720"></canvas>
+                    <div class="preview-overlay" id="preview-overlay">
+                        <div class="preview-message">
+                            <h3>No Preview Available</h3>
+                            <p>Connect to OBS Studio to see the stream preview</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="preview-controls">
+                    <button id="start-streaming" class="control-btn">Start Streaming</button>
+                    <button id="start-recording" class="control-btn">Start Recording</button>
+                    <button id="studio-mode" class="control-btn toggle">Studio Mode</button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Controls -->
+            <div class="controls-panel">
+                <!-- Scenes -->
+                <div class="section scenes-section">
+                    <div class="section-header">
+                        <h3>Scenes</h3>
+                        <div class="section-actions">
+                            <button class="mini-btn" onclick="showAddSceneDialog()" title="Add Scene">+</button>
+                            <button class="mini-btn" onclick="removeSelectedScene()" title="Remove Scene">-</button>
+                            <button class="mini-btn" onclick="moveSceneUp()" title="Move Up">↑</button>
+                            <button class="mini-btn" onclick="moveSceneDown()" title="Move Down">↓</button>
+                        </div>
+                    </div>
+                    <div class="scenes-list" id="scenes-list">
+                        <!-- Scenes will be populated here -->
+                    </div>
+                    <div class="scene-transitions">
+                        <label>Transition:</label>
+                        <select id="transition-select" onchange="changeTransition()">
+                            <option value="Cut">Cut</option>
+                            <option value="Fade">Fade</option>
+                            <option value="Slide">Slide</option>
+                        </select>
+                        <input type="number" id="transition-duration" value="300" min="50" max="3000" step="50">
+                        <span>ms</span>
+                    </div>
+                </div>
+
+                <!-- Sources -->
+                <div class="section sources-section">
+                    <div class="section-header">
+                        <h3>Sources</h3>
+                        <div class="section-actions">
+                            <button class="mini-btn" onclick="showAddSourceMenu(event)" title="Add Source">+</button>
+                            <button class="mini-btn" onclick="removeSelectedSource()" title="Remove Source">-</button>
+                            <button class="mini-btn" onclick="moveSourceUp()" title="Move Up">↑</button>
+                            <button class="mini-btn" onclick="moveSourceDown()" title="Move Down">↓</button>
+                            <button class="mini-btn" onclick="showSourceProperties()" title="Properties">P</button>
+                            <button class="mini-btn" onclick="showSourceFilters()" title="Filters">F</button>
+                        </div>
+                    </div>
+                    <div class="sources-list" id="sources-list">
+                        <!-- Sources will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Audio Mixer -->
+                <div class="section mixer-section">
+                    <div class="section-header">
+                        <h3>Audio Mixer</h3>
+                    </div>
+                    <div class="mixer-container" id="mixer-container">
+                        <!-- Audio sources will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Bar: Mode Selection & Connection -->
+        <div class="bottom-bar">
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="moderator">Moderator Mode</button>
+                <button class="mode-btn" data-mode="streamer">Streamer Mode</button>
+            </div>
+            <div class="connection-panel" id="connection-panel">
+                <input type="text" id="ws-url" placeholder="Enter OBS WebSocket URL (ws://localhost:4455 or wss://...)">
+                <input type="password" id="ws-password" placeholder="Password (if required)">
+                <button id="connect-btn" class="primary-btn">Connect to OBS</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Modal (First Time) -->
+    <div id="setup-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Initial Setup</h2>
+            <p>To use RastryOBS you need an ngrok token (free).</p>
+            <ol>
+                <li>Go to <a href="#" onclick="openExternal('https://dashboard.ngrok.com/signup')">dashboard.ngrok.com/signup</a></li>
+                <li>Sign up with Google/GitHub (30 seconds)</li>
+                <li>Copy your authtoken from <a href="#" onclick="openExternal('https://dashboard.ngrok.com/get-started/your-authtoken')">here</a></li>
+                <li>Paste it below:</li>
+            </ol>
+            <input type="text" id="ngrok-token-input" placeholder="Paste your ngrok authtoken here...">
+            <button onclick="saveNgrokToken()" class="primary-btn">Save Token</button>
+        </div>
+    </div>
+
+    <!-- Add Source Menu -->
+    <div id="add-source-menu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" onclick="addSource('browser_source')">
+            <span>Browser Source</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('window_capture')">
+            <span>Window Capture</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('game_capture')">
+            <span>Game Capture</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('display_capture')">
+            <span>Display Capture</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('image_source')">
+            <span>Image</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('color_source')">
+            <span>Color Source</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('text_gdiplus')">
+            <span>Text (GDI+)</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('media_source')">
+            <span>Media Source</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('wasapi_input_capture')">
+            <span>Audio Input Capture</span>
+        </div>
+        <div class="context-menu-item" onclick="addSource('wasapi_output_capture')">
+            <span>Audio Output Capture</span>
+        </div>
+    </div>
+
+    <!-- Add Scene Dialog -->
+    <div id="add-scene-dialog" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Add Scene</h2>
+            <input type="text" id="new-scene-name" placeholder="Scene name...">
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button onclick="createScene()" class="primary-btn">Create</button>
+                <button onclick="hideAddSceneDialog()" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source Properties Dialog -->
+    <div id="source-properties-dialog" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <h2>Source Properties</h2>
+            <div id="source-properties-content">
+                <!-- Dynamic content -->
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button onclick="hideSourceProperties()" class="primary-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Settings Dialog -->
+    <div id="audio-settings-dialog" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <h2 id="audio-settings-title">Audio Settings</h2>
+            
+            <div class="audio-settings-content">
+                <!-- Volume Control -->
+                <div class="settings-section">
+                    <h3>Volume</h3>
+                    <div class="setting-row">
+                        <label>Volume:</label>
+                        <div class="volume-control-large">
+                            <input type="range" id="audio-volume-slider" min="0" max="100" value="100">
+                            <span id="audio-volume-percent">100%</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Volume (dB):</label>
+                        <input type="number" id="audio-volume-db" value="0" step="0.1" min="-100" max="0">
+                    </div>
+                </div>
+
+                <!-- Audio Monitoring -->
+                <div class="settings-section">
+                    <h3>Audio Monitoring</h3>
+                    <div class="setting-row">
+                        <label>Monitor Type:</label>
+                        <select id="audio-monitor-type">
+                            <option value="none">Monitor Off</option>
+                            <option value="monitorOnly">Monitor Only (mute output)</option>
+                            <option value="monitorAndOutput">Monitor and Output</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>
+                            <input type="checkbox" id="audio-sync-offset-enabled">
+                            Sync Offset (ms):
+                        </label>
+                        <input type="number" id="audio-sync-offset" value="0" step="10" disabled>
+                    </div>
+                </div>
+
+                <!-- Audio Filters -->
+                <div class="settings-section">
+                    <h3>Audio Filters</h3>
+                    <div class="filters-list" id="audio-filters-list">
+                        <div class="empty-filters">No filters added</div>
+                    </div>
+                    <div class="filters-controls">
+                        <button onclick="showAddFilterMenu()" class="secondary-btn">+ Add Filter</button>
+                        <button onclick="removeSelectedFilter()" class="secondary-btn">- Remove</button>
+                        <button onclick="moveFilterUp()" class="mini-btn">↑</button>
+                        <button onclick="moveFilterDown()" class="mini-btn">↓</button>
+                    </div>
+                </div>
+
+                <!-- Advanced Settings -->
+                <div class="settings-section">
+                    <h3>Advanced</h3>
+                    <div class="setting-row">
+                        <label>
+                            <input type="checkbox" id="audio-force-mono">
+                            Downmix to Mono
+                        </label>
+                    </div>
+                    <div class="setting-row">
+                        <label>Audio Tracks:</label>
+                        <div class="audio-tracks">
+                            <label><input type="checkbox" id="track-1" checked> 1</label>
+                            <label><input type="checkbox" id="track-2"> 2</label>
+                            <label><input type="checkbox" id="track-3"> 3</label>
+                            <label><input type="checkbox" id="track-4"> 4</label>
+                            <label><input type="checkbox" id="track-5"> 5</label>
+                            <label><input type="checkbox" id="track-6"> 6</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end;">
+                <button onclick="applyAudioSettings()" class="primary-btn">Apply</button>
+                <button onclick="hideAudioSettings()" class="secondary-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Filter Menu -->
+    <div id="add-filter-menu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" onclick="addAudioFilter('compressor')">
+            <span>Compressor</span>
+        </div>
+        <div class="context-menu-item" onclick="addAudioFilter('expander')">
+            <span>Expander</span>
+        </div>
+        <div class="context-menu-item" onclick="addAudioFilter('gain')">
+            <span>Gain</span>
+        </div>
+        <div class="context-menu-item" onclick="addAudioFilter('limiter')">
+            <span>Limiter</span>
+        </div>
+        <div class="context-menu-item" onclick="addAudioFilter('noise_gate')">
+            <span>Noise Gate</span>
+        </div>
+        <div class="context-menu-item" onclick="addAudioFilter('noise_suppress')">
+            <span>Noise Suppression</span>
+        </div>
+        <div class="context-menu-item" onclick="addAudioFilter('vst_plugin')">
+            <span>VST 2.x Plugin</span>
+        </div>
+    </div>
+
+    <!-- WebSocket Server Settings Modal -->
+    <div id="websocket-settings-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <h2>WebSocket Server Settings</h2>
+            <div class="audio-settings-content">
+                <div class="settings-section">
+                    <h3>OBS Connection</h3>
+                    <div class="setting-row">
+                        <label>OBS Status:</label>
+                        <span id="ws-obs-status" style="color: #6b6b6b;">Not Connected</span>
+                    </div>
+                    <p id="ws-obs-warning" style="font-size: 12px; color: #f59e0b; margin-top: 8px; display: none;">
+                        ⚠ You must connect to OBS before starting the relay server
+                    </p>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Server Status</h3>
+                    <div class="setting-row">
+                        <label>Status:</label>
+                        <span id="ws-status-text" style="color: #6b6b6b;">Stopped</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>Port:</label>
+                        <span id="ws-port-text" style="color: #efeff1;">4456</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>Connected Clients:</label>
+                        <span id="ws-clients-text" style="color: #efeff1;">0</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>Connection URL:</label>
+                        <input type="text" id="ws-url-text" value="ws://localhost:4456" readonly style="flex: 1; cursor: text;">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Server Configuration</h3>
+                    <div class="setting-row">
+                        <label>Server Port:</label>
+                        <input type="number" id="ws-port-input" value="4456" min="1024" max="65535" style="width: 120px;">
+                    </div>
+                    <div class="setting-row">
+                        <label>Auto-start on connect:</label>
+                        <input type="checkbox" id="ws-auto-start">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Server Control</h3>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="ws-start-btn" class="primary-btn" onclick="startRelayFromSettings()">Start Server</button>
+                        <button id="ws-stop-btn" class="secondary-btn" onclick="stopRelayFromSettings()" style="display: none;">Stop Server</button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Information</h3>
+                    <p style="font-size: 13px; color: #9ca3af; line-height: 1.6;">
+                        The WebSocket server allows web applications and Twitch extensions to connect to RastryOBS locally.
+                        <br><br>
+                        <strong style="color: #efeff1;">Important:</strong> You must first connect to OBS before starting this relay server. Once connected and the server is running, web applications can connect to the URL shown above to control OBS.
+                    </p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px;">
+                <button class="secondary-btn" onclick="closeWebSocketSettings()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hotkeys Modal -->
+    <div id="hotkeys-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
+            <h2>Keyboard Shortcuts</h2>
+            <p style="color: #9ca3af; margin-bottom: 20px;">Control RastryOBS with keyboard shortcuts. Press any key combination when RastryOBS is focused.</p>
+            
+            <div class="hotkeys-list" id="hotkeys-list">
+                <!-- Will be populated by JavaScript -->
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="secondary-btn" onclick="resetHotkeysToDefaults()">Reset to Defaults</button>
+                <button class="primary-btn" style="margin-left: auto;" onclick="closeHotkeysModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer-obs.js"></script>
+</body>
+</html>
